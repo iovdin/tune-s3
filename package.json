@@ -1,0 +1,31 @@
+{
+  "name": "tune-s3",
+  "version": "0.1.0",
+  "description": "s3 bucket as filesystem",
+  "main": "src/index.js",
+  "files": [
+    "src/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node test/index.js",
+    "test:watch": "node --watch test/index.js"
+  },
+  "keywords": [
+    "ai",
+    "chat",
+    "filesystem",
+    "s3",
+    "tune"
+  ],
+  "author": "Ilya Ovdin <iovdin@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/iovdin/tune-s3"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.879.0",
+    "mime-types": "^3.0.1"
+  }
+}
