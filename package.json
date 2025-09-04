@@ -1,6 +1,6 @@
 {
   "name": "tune-s3",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "s3 bucket as filesystem",
   "main": "src/index.js",
   "files": [

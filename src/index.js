@@ -30,7 +30,7 @@ async function getItem({ s3, Bucket, Key }) {
     if (e.message === "Key not found") {
       return "Not found"
     }
-    return e.stack
+    throw(e)
   }
 }
 
@@ -92,7 +92,7 @@ function createS3Middleware({ bucket, mount, region, accessKeyId, secretAccessKe
         read: async() => getItem({s3, Bucket: bucket, Key: item.Key })
       }))
 
-    } else if (name.indexOf("/") === name.length - 1) {
+    } else if (name[name.length-1] === "/") {
       result.push({
         type: "text",
         source: bucket,
@@ -107,7 +107,7 @@ function createS3Middleware({ bucket, mount, region, accessKeyId, secretAccessKe
             }
             return `Directory '${name}' is empty`
           }catch (e) {
-            return e.stack
+            throw(e)
           }
         }
       })
