@@ -1,10 +1,10 @@
 const util = require('util')
 const mime = require('mime-types');
-const path = require('path')
+const nodepath = require('path')
 const { S3Client, GetObjectCommand, ListObjectsV2Command, PutObjectCommand } = require("@aws-sdk/client-s3");
 
 const getFileType = (filename) => 
-  [".jpg", ".jpeg", ".png", ".webp"].includes(path.extname(filename).toLowerCase()) ? "image" : "text";
+  [".jpg", ".jpeg", ".png", ".webp"].includes(nodepath.extname(filename).toLowerCase()) ? "image" : "text";
 
 
 async function list({ Bucket, Prefix, Dlimiter, MaxKeys = 1000 }) {
@@ -34,11 +34,13 @@ async function getItem({ s3, Bucket, Key }) {
   }
 }
 
-function createS3Middleware({ bucket, mount, region, accessKeyId, secretAccessKey, write, endpoint }) {
-  let s3;
+const clientCache = {}
+
+function createS3Middleware({ bucket, mount, path, region, accessKeyId, secretAccessKey, write: enableWrite, endpoint }) {
   async function getS3(ctx) {
-    if (s3) {
-      return s3
+    const cacheKey = [bucket, region, accessKeyId, secretAccessKey, endpoint].join("-")
+    if(clientCache[cacheKey]) {
+      return clientCache[cacheKey]
     }
     let key = accessKeyId;
     if (!key) {
@@ -56,25 +58,33 @@ function createS3Middleware({ bucket, mount, region, accessKeyId, secretAccessKe
       throw Error(`secretAccessKey is not set`)
     }
 
-    s3 = new S3Client({
+    clientCache[cacheKey] = new S3Client({
       endpoint,
       region,
       forcePathStyle: true,
       credentials: { accessKeyId: key, secretAccessKey: secret }
     });
 
-    return s3
+    return clientCache[cacheKey] 
   }
 
+  const strip = (prefix, name) => prefix ? name.slice(prefix.length + 1) : name
   async function s3md(name, args) {
     if (mount && name.indexOf(mount) !== 0) {
       return
     }
+
     const s3 = await getS3(this)
     let rname = name;
+
     if(mount) {
-      rname = name.slice(mount.length + 1)
+      rname = strip(mount, name)
     }
+
+    if (path) {
+      rname = nodepath.normalize(`${path}/${rname}`)
+    }
+
 
     let result = []
 
@@ -89,7 +99,7 @@ function createS3Middleware({ bucket, mount, region, accessKeyId, secretAccessKe
         name: item.Key,
         mimetype: mime.lookup(item.key),
         source: bucket,
-        read: async() => getItem({s3, Bucket: bucket, Key: item.Key })
+        read: async() => getItem({s3, Bucket: bucket, Key: strip(path, item.Key) })
       }))
 
     } else if (name[name.length-1] === "/") {
@@ -100,8 +110,8 @@ function createS3Middleware({ bucket, mount, region, accessKeyId, secretAccessKe
         read: async() => {
           try {
             const res = await s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: rname, MaxKeys: 200, Delimiter: "/" }))
-            const filelist = (res.Contents || []).map(item => item.Key).join("\n")
-            const dirlist = (res.CommonPrefixes || []).map(item => item.Prefix).join("\n")
+            const filelist = (res.Contents || []).map(item => strip(path, item.Key)).join("\n")
+            const dirlist = (res.CommonPrefixes || []).map(item => strip(path, item.Prefix)).join("\n")
             if (res.KeyCount > 0) {
               return `Directory '${name}':\n${dirlist}\n${filelist}`
             }
@@ -130,11 +140,11 @@ function createS3Middleware({ bucket, mount, region, accessKeyId, secretAccessKe
     if (mount && name.indexOf(mount) !== 0) {
       return
     }
-    let rname = name;
-    if(mount) {
-      rname = name.slice(mount.length + 1)
-    }
+    let rname = strip(mount, name);
 
+    if (path) {
+      rname = nodepath.normalize(`${path}/${rname}`)
+    }
     const s3 = await getS3(ctx)
 
     await s3.send(new PutObjectCommand({
@@ -145,7 +155,7 @@ function createS3Middleware({ bucket, mount, region, accessKeyId, secretAccessKe
     }));
     return true
   }
-  if (write) {
+  if (enableWrite) {
     return [s3md, write]
   }
   return s3md
