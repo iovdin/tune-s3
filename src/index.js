@@ -28,7 +28,7 @@ async function getItem({ s3, Bucket, Key }) {
     return bodyBuffer
   } catch (e) {
     if (e.message === "Key not found") {
-      return "Not found"
+      return
     }
     throw(e)
   }
@@ -124,13 +124,17 @@ function createS3Middleware({ bucket, mount, path, region, accessKeyId, secretAc
     } else {
       const mimetype = mime.lookup(name)
 
-      result.push({
-        type: getFileType(name),
-        source: bucket,
-        mimetype,
-        name,
-        read: async() => getItem({s3, Bucket: bucket, Key: rname })
-      })
+      const value = await getItem({s3, Bucket: bucket, Key: rname })
+      
+      if (typeof value !== 'undefined') {
+        result.push({
+          type: getFileType(name),
+          source: bucket,
+          mimetype,
+          name,
+          read: async() =>  value
+        })
+      }
     }
 
     return (args.output === "all") ? result : result[0];
